@@ -1,0 +1,16 @@
+
+
+<p>Name: {{name}}</p>
+<p>Developer: {{developer}}</p>
+<p>Rating: {{rating}}</p>
+
+<form action="">
+  <button class="button is-primary"><a href="/editVideogame/{{id}}">Editar</a></button>
+</form>
+
+
+
+
+<form action="/delete-game/{{id}}" method="POST">
+  <button class="button is-danger" type="submit">Eliminar</button>
+</form>
