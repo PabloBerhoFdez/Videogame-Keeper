@@ -5,10 +5,14 @@ const chalk     = require ('chalk')
 const dotenv    = require ('dotenv')
 const hbs       = require ('hbs')
 const bodyParser= require ('body-parser')
+const bcrypt    = require('bcrypt')
+const session   = require('express-session')
+const MongoStore= require('connect-mongo')(session)
 
 // CONSTANTS
 const app = express()
 const Videogame = require('./models/Videogame.js')
+const User = require('./models/User.js')
 
 //---- CONFIGURATION ----//
 //---Configuracion de .env---//
@@ -37,21 +41,31 @@ app.use(bodyParser.urlencoded({ extended: true }))
 //---Configuracion carpeta estatica---//
 app.use(express.static(__dirname + '/public'))
 
+app.use(session({
+  secret: "basic-auth-secret",
+  cookie: { maxAge: 60000 },
+  saveUninitialized: true,
+  resave: true,
+  store: new MongoStore({
+    mongooseConnection: mongoose.connection,
+    ttl: 24 * 60 * 60 // 1 day
+  })
+}));
 
 // ROUTES
 
 //----RUTA GET DE LA HOME PAGE----//
 app.get('/', (req, res, next)=>{
 
-  // const newVideogame = {
-  //   name: 'The Legend of Zelda: Ocarina of Time',
-  //   platform: ['Nintendo 64','GameCube', 'iQue Player'],
-  //   genre: ['Action', 'Adventure'],
-  //   developer: 'Nintendo',
-  //   releaseDate: '1998-12-11',
-  //   rating: 99,
-  //   pegi: '12'
-  // }
+  const newVideogame = {
+    name: 'The Legend of Zelda: Ocarina of Time',
+    platform: ['Nintendo 64','GameCube', 'iQue Player'],
+    genre: ['Action', 'Adventure'],
+    developer: 'Nintendo',
+    releaseDate: '1998-12-11',
+    rating: 99,
+    pegi: '12'
+  }
 
   Videogame.create(newVideogame)
   .then((result)=>{
@@ -158,9 +172,64 @@ app.post('/editVideogame/:id', (req,res,next)=>{
   })  
 })
 
+//----RUTA PARA CREAR SIGN UP----//
+app.get('/sign-up', (req,res,next)=>{
+  res.render('signUp')
+})
 
+app.post('/sign-up', (req, res, next)=>{
+  const {email, password} = req.body
+  User.findOne({email: email})
+  .then((result)=>{
+    if(!result){
+      bcrypt.genSalt(10)
+      .then((salt)=>{
+        bcrypt.hash(password, salt)
+        .then((hashedPassword)=>{
+          const hashedUser = {email: email, password: hashedPassword}
+          User.create(hashedUser)
+          .then((result)=>{
+            res.redirect('/')
+          })
+        })
+      })
+      .catch((err)=>{
+        res.send(err)
+      })
+    } else {
+      res.render('logIn', {errorMessage: 'Este usuario ya existe. ¿Querías hacer Log In?'})
+    }
+  })
+})
 
+//----RUTA PARA LOG IN----//
+app.get('/log-in', (req,res,next)=>{
+  res.render('login')
+})
 
+app.post('/log-in',(req,res,next)=>{
+  // console.log(req.body)
+  const {email, password} = req.body
+
+  User.findOne({email: email})
+  .then((result)=>{
+    if(!result){
+      console.log('El usuario no existe')
+      res.render('login', {errorMessage: 'Este usuario no existe, Lo sentimos.'})
+    }else{
+      bcrypt.compare(password, result.password)
+      .then((resultFromBcrypt)=>{
+        if(resultFromBcrypt){
+          req.session.currentUser = email
+          console.log(req.session)
+          res.redirect('/')
+        }else {
+          res.render('login', {errorMessage: 'Contraseña incorrecta. Por favor, vuelva a intentarlo.'})
+        }
+      })
+    }
+  })
+})
 // LISTENER
 app.listen(process.env.PORT, ()=>{
   console.log(chalk.blue.inverse.bold(`Conectado al puerto ${process.env.PORT}`))
