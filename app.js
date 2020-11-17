@@ -19,8 +19,8 @@ const User = require('./models/User.js')
 require('dotenv').config() 
 //---Configuracion de hbs---//
 app.set('view engine', 'hbs')
-//Configuracion de hbs---//
-app.set('views', __dirname + '/views') 
+app.set('views', __dirname + '/views')
+hbs.registerPartials(__dirname + "/views/partials")
 //---config mongoose---//
 mongoose.connect(`mongodb://localhost/${process.env.DATABASE}`, {
   useCreateIndex: true,
@@ -56,25 +56,7 @@ app.use(session({
 
 //----RUTA GET DE LA HOME PAGE----//
 app.get('/', (req, res, next)=>{
-
-  const newVideogame = {
-    name: 'The Legend of Zelda: Ocarina of Time',
-    platform: ['Nintendo 64','GameCube', 'iQue Player'],
-    genre: ['Action', 'Adventure'],
-    developer: 'Nintendo',
-    releaseDate: '1998-12-11',
-    rating: 99,
-    pegi: '12'
-  }
-
-  Videogame.create(newVideogame)
-  .then((result)=>{
-    console.log(result)
-  })
-  .catch((error)=>{
-    console.log(error)
-  })
-  res.render('home')
+  res.render('home', {session: req.session.currentUser})
 })
 
 //----RUTA GET PARA CREAR VIDEOJUEGO NUEVO----//
@@ -123,14 +105,19 @@ app.get('/videogame/:id', (req, res, next)=>{
 })
 //----RUTA GET PARA VER TODOS LOS VIDEOJUEGOS----//
 app.get('/allVideogames', (req, res, next)=>{
-  Videogame.find({}, {name: 1, _id:1, imageUrl: 1})
-  .then((videogames)=>{
-    res.render('allVideogames', {videogames})
-  })
-  .catch((err)=>{
-    console.log(err)
-    res.send(err)
-  })
+  console.log(req.session.currentUser)
+  if(req.session.currentUser){
+    Videogame.find({}, {name: 1, _id:1, imageUrl: 1}, {sort: {rating: -1}})
+    .then((videogames)=>{
+      res.render('allVideogames', {videogames})
+    })
+    .catch((err)=>{
+      console.log(err)
+      res.send(err)
+    })
+  }else {
+    res.redirect('/log-in')
+  }
 })
 //----RUTA POST PARA ELIMINAR VIDEOJUEGO ESPECIFICO----//
 app.post('/delete-game/:id', (req,res,next)=>{
@@ -222,7 +209,10 @@ app.post('/log-in',(req,res,next)=>{
         if(resultFromBcrypt){
           req.session.currentUser = email
           console.log(req.session)
+          req.session.destroy()
+          console.log(req.session)
           res.redirect('/')
+          // req.session.destroy
         }else {
           res.render('login', {errorMessage: 'Contraseña incorrecta. Por favor, vuelva a intentarlo.'})
         }
@@ -230,6 +220,13 @@ app.post('/log-in',(req,res,next)=>{
     }
   })
 })
+
+app.get('/log-out', (req,res,next)=>{
+  req.session.destroy()
+  res.redirect('/')
+})
+
+
 // LISTENER
 app.listen(process.env.PORT, ()=>{
   console.log(chalk.blue.inverse.bold(`Conectado al puerto ${process.env.PORT}`))
